@@ -1,11 +1,11 @@
 {
-  "name": "hugo-tags-helper",
-  "displayName": "Hugo Tags Helper",
+  "name": "blog-tags-helper",
+  "displayName": "Blog Tags Helper",
   "description": "Provides minor intellisense when using tags in frontmatter",
   "version": "1.2.0",
   "publisher": "kaellarkin",
   "repository": {
-    "url": "https://github.com/KFreon/hugo-tags-helper.git",
+    "url": "https://github.com/flcdrg/blog-tags-helper.git",
     "type": "git"
   },
   "engines": {
@@ -15,7 +15,11 @@
     "Other"
   ],
   "keywords": [
-    "Hugo"
+    "Blog",
+    "Hugo",
+    "markdown",
+    "tags",
+    "frontmatter"
   ],
   "activationEvents": [
     "onLanguage:markdown"
@@ -23,14 +27,29 @@
   "contributes": {
     "commands": [
       {
-        "command": "hugo-tags-helper.regenerateTags",
-        "title": "Regenerate Hugo Tags"
+        "command": "blog-tags-helper.regenerateTags",
+        "title": "Regenerate Blog Tags"
       },
       {
-        "command": "hugo-tags-helper.test",
-        "title": "DONOTUSE: Parse hugo tags in this document"
+        "command": "blog-tags-helper.test",
+        "title": "DONOTUSE: Parse blog tags in this document"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Blog Tags Helper",
+      "properties": {
+        "blogTagsHelper.enable": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable or disable the Blog Tags Helper extension"
+        },
+        "blogTagsHelper.fileGlobPattern": {
+          "type": "string",
+          "default": "**/index.md",
+          "description": "Glob pattern to find markdown files with frontmatter (e.g., 'src/posts/**/*.md', 'content/**/*.md')"
+        }
+      }
+    }
   },
   "icon": "icon.png",
   "main": "./out/extension.js",

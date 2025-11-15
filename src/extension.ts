@@ -1,13 +1,22 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as readline from 'readline';
-import { HugoTagsHelperProvider, supportedTagsStart } from './HugoTagsHelperProvider';
+import { BlogTagsHelperProvider, supportedTagsStart } from './BlogTagsHelperProvider';
 
-export const knownHugoTagsKey = "knownHugoTags";
-const hugoTagsLastUpdatedKey = 'hugoTagsLastUpdated';
+export const knownBlogTagsKey = "knownBlogTags";
+const blogTagsLastUpdatedKey = 'blogTagsLastUpdated';
 
 export async function activate(context: vscode.ExtensionContext) {
-	const lastGenerated = context.workspaceState.get<Date>(hugoTagsLastUpdatedKey, new Date(0));
+	// Check if the extension is enabled
+	const config = vscode.workspace.getConfiguration('blogTagsHelper');
+	const isEnabled = config.get<boolean>('enable', true);
+	
+	if (!isEnabled) {
+		console.log('Blog Tags Helper is disabled');
+		return;
+	}
+
+	const lastGenerated = context.workspaceState.get<Date>(blogTagsLastUpdatedKey, new Date(0));
 	const currentDate = new Date();
 	const lastWeek = new Date(currentDate.setDate(currentDate.getDate() - 7));
 	if (lastGenerated < lastWeek) {
@@ -15,11 +24,11 @@ export async function activate(context: vscode.ExtensionContext) {
 	}
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("hugo-tags-helper.regenerateTags", async () => await generateTagList(context))
+		vscode.commands.registerCommand("blog-tags-helper.regenerateTags", async () => await generateTagList(context))
 	);
 
 	context.subscriptions.push(
-		vscode.commands.registerCommand("hugo-tags-helper.test", async () => {
+		vscode.commands.registerCommand("blog-tags-helper.test", async () => {
 			const tagLines = await getTagsFromFile(vscode.window.activeTextEditor?.document.uri.fsPath ?? '');
 			const tags = parseTags(tagLines);
 			console.log('RESULT', tagLines, tags);
@@ -27,21 +36,24 @@ export async function activate(context: vscode.ExtensionContext) {
 	);
 
 	context.subscriptions.push(
-		vscode.languages.registerCompletionItemProvider('markdown', new HugoTagsHelperProvider(context.workspaceState), '"', "'")
+		vscode.languages.registerCompletionItemProvider('markdown', new BlogTagsHelperProvider(context.workspaceState), '"', "'")
 	);
 }
 
 async function generateTagList(context: vscode.ExtensionContext) {
+	const config = vscode.workspace.getConfiguration('blogTagsHelper');
+	const fileGlobPattern = config.get<string>('fileGlobPattern', '**/index.md');
+
 	await vscode.window.withProgress({
 		location: vscode.ProgressLocation.Notification,
-		title: "Finding Hugo tags...",
+		title: "Finding blog tags...",
 		cancellable: true,
 	}, async (progress, token) => {
 		token.onCancellationRequested(() => {
 			console.log("User canceled the long running operation");
 		});
 
-		const files = await vscode.workspace.findFiles("**/index.md");
+		const files = await vscode.workspace.findFiles(fileGlobPattern);
 		const allTags = new Set<string>();
 		for (let f of files) {
 			if (token.isCancellationRequested) {
@@ -53,8 +65,8 @@ async function generateTagList(context: vscode.ExtensionContext) {
 		}
 
 		const strings = Array.from(allTags);
-		await context.workspaceState.update(knownHugoTagsKey, strings);
-		await context.workspaceState.update(hugoTagsLastUpdatedKey, new Date());
+		await context.workspaceState.update(knownBlogTagsKey, strings);
+		await context.workspaceState.update(blogTagsLastUpdatedKey, new Date());
 
 		progress.report({message: 'Finished!'});
 	});

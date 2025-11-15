@@ -1,9 +1,9 @@
 import * as vscode from 'vscode';
-import { knownHugoTagsKey } from './extension';
+import { knownBlogTagsKey } from './extension';
 
 export const supportedTagsStart = ["tags:", "tags=", "tags ="];
 
-export class HugoTagsHelperProvider implements vscode.CompletionItemProvider {
+export class BlogTagsHelperProvider implements vscode.CompletionItemProvider {
 	private workspaceState: vscode.Memento;
 
 	constructor(state: vscode.Memento) {
@@ -39,7 +39,7 @@ export class HugoTagsHelperProvider implements vscode.CompletionItemProvider {
 			lineIdx--;
 		}
 
-		const tags = this.workspaceState.get<string[]>(knownHugoTagsKey, []);
+		const tags = this.workspaceState.get<string[]>(knownBlogTagsKey, []);
 		const completionItems = tags.map(t => new vscode.CompletionItem(t, vscode.CompletionItemKind.Enum));
 		return Promise.resolve(completionItems);
 	}
