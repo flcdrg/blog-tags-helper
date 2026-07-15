@@ -5,6 +5,7 @@ import { HugoTagsHelperProvider, supportedTagsStart } from './HugoTagsHelperProv
 
 export const knownBlogTagsKey = "knownBlogTags";
 const blogTagsLastUpdatedKey = 'blogTagsLastUpdated';
+const topLevelFrontmatterPropertyPattern = /^[A-Za-z0-9_-]+\s*[:=]/;
 
 export async function activate(context: vscode.ExtensionContext) {
 	const outputChannel = vscode.window.createOutputChannel('Blog Tags Helper');
@@ -101,37 +102,48 @@ async function generateTagList(context: vscode.ExtensionContext, outputChannel: 
 export async function getTagsFromFile(filePath: string, outputChannel: vscode.OutputChannel): Promise<string[]> {
 	const stream = fs.createReadStream(filePath);
 	const readInterface = readline.createInterface(stream);
-	let tagLines = [];
+	let tagLines: string[] = [];
 	let foundStart = false;
 	let isYamlListFormat = false;
+	let frontmatterDelimiter: string | undefined;
 	try {
 		let index = 0;
 		for await (const line of readInterface) {
-			if (index === 0 && !isAFrontmatterLine(line)) {
+			const trimmed = line.trim();
+
+			if (index === 0 && !isAFrontmatterLine(trimmed)) {
 				// No frontmatter
 				return [];
-			} else if (index !== 0 && isAFrontmatterLine(line)) {
+			}
+
+			if (index === 0) {
+				frontmatterDelimiter = trimmed;
+				index++;
+				continue;
+			}
+
+			if (frontmatterDelimiter && trimmed === frontmatterDelimiter) {
 				// End of frontmatter, return what we found
 				return tagLines;
 			}
-
-			const trimmed = line.trim();
-
-			const isEnd = trimmed.includes(']');
 			
 			if (!foundStart && supportedTagsStart.some(x => trimmed.startsWith(x))) {
 				foundStart = true;
 				tagLines.push(trimmed);
+				const hasOpenBracket = trimmed.includes('[');
+				const hasCloseBracket = hasUnescapedClosingBracket(trimmed);
 
 				// If it's all one line (array format), just return now
-				if (isEnd) {
+				if (hasOpenBracket && hasCloseBracket) {
 					return tagLines;
 				}
 				
 				// Check if it's YAML list format (tags: followed by newline)
-				if (trimmed.endsWith(':') || !trimmed.includes('[')) {
+				if (trimmed.endsWith(':') || !hasOpenBracket) {
 					isYamlListFormat = true;
 				}
+
+				index++;
 				continue;
 			}
 
@@ -148,14 +160,16 @@ export async function getTagsFromFile(filePath: string, outputChannel: vscode.Ou
 				continue;
 			}
 
-			// End of the tags array (bracket format)
-			if (isEnd) {
-				tagLines.push(trimmed);
-				return tagLines;
-			}
-
 			if (foundStart) {
+				// Stop when the next top-level frontmatter property begins.
+				if (topLevelFrontmatterPropertyPattern.test(line)) {
+					return tagLines;
+				}
+
 				tagLines.push(trimmed);
+				if (hasUnescapedClosingBracket(trimmed)) {
+					return tagLines;
+				}
 			}
 
 			index++;
@@ -170,10 +184,19 @@ export async function getTagsFromFile(filePath: string, outputChannel: vscode.Ou
 
 export function parseTags(lines: string[]): string[] {
 	const tags = lines.flatMap(line => {
+		const trimmed = line.trim();
+
 		// YAML list format: - TagName
-		if (line.trim().startsWith('-')) {
-			const tag = line.trim().substring(1).trim();
+		if (trimmed.startsWith('-')) {
+			const tag = trimmed.substring(1).trim();
 			return tag ? [tag] : [];
+		}
+
+		// Skip quoted strings from unrelated lines if they were accidentally included.
+		const isTagsDeclaration = supportedTagsStart.some(x => trimmed.startsWith(x));
+		const isArrayItemLine = /^["'][^"']*["']\s*,?\s*$/.test(trimmed);
+		if (!isTagsDeclaration && !trimmed.includes('[') && !trimmed.includes(']') && !isArrayItemLine) {
+			return [];
 		}
 		
 		// Array format with quotes: ["tag1", "tag2"] or tags: ["tag1"]
@@ -190,5 +213,24 @@ export function parseTags(lines: string[]): string[] {
 
 // Only yaml or toml
 function isAFrontmatterLine(line: string) {
-	return line.includes('---') || line.includes('+++');
+	return line === '---' || line === '+++';
+}
+
+function hasUnescapedClosingBracket(line: string): boolean {
+	for (let i = 0; i < line.length; i++) {
+		if (line[i] !== ']') {
+			continue;
+		}
+
+		let slashCount = 0;
+		for (let j = i - 1; j >= 0 && line[j] === '\\'; j--) {
+			slashCount++;
+		}
+
+		if (slashCount % 2 === 0) {
+			return true;
+		}
+	}
+
+	return false;
 }

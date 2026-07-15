@@ -194,6 +194,25 @@ Post content here`;
 			assert.deepStrictEqual(tags.sort(), ['Hardware', 'Work']);
 		});
 
+		test('should not parse quoted prose as a tag when array is unterminated', async () => {
+			const content = `---
+title: HasMany and null foreign key columns
+tags: [
+  '.NET',
+description: 'I\'ve been trying to figure out why our data layer was not saving a new item that we added to a \\[HasMany\\] collection.'
+---
+
+Body content`;
+
+			const filePath = path.join(tempDir, 'unterminated-array.md');
+			fs.writeFileSync(filePath, content);
+
+			const tagLines = await getTagsFromFile(filePath, mockOutputChannel);
+			const tags = parseTags(tagLines);
+
+			assert.deepStrictEqual(tags, ['.NET']);
+		});
+
 		test('should return empty array for file without frontmatter', async () => {
 			const content = `# Test Post
 
